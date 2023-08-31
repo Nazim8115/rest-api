@@ -93,6 +93,7 @@ class UserController {
     if (password) {
       const salt = await bcrypt.genSalt(10);
       const newhashedPassword = await bcrypt.hash(password, salt);
+
       await UserModel.findByIdAndUpdate(req.user._id, {
         $set: { password: newhashedPassword },
       });
@@ -100,6 +101,62 @@ class UserController {
       res.send({ status: "success", message: "password changed successfully" });
     } else {
       res.send({ status: "all fields are required" });
+    }
+  };
+
+  //   data of logged user
+  static getLoggedUserData = async (req, res) => {
+    console.log(req.user);
+    res.send({ user: req.user });
+  };
+
+  //   sending reset email
+
+  static sendUserPasswordResetEmail = async (req, res) => {
+    const { email } = req.body;
+    if (email) {
+      const user = await UserModel.findOne({ email: email });
+      if (user) {
+        const secret = user._id + process.env.jwt_secret_key;
+        const token = jwt.sign({ userID: user._id }, secret, {
+          expiresIn: "15m",
+        });
+        const link = `http://127.0.0.1:3000/api/user/reset/${user._id}/${token}`;
+        console.log(link);
+        res.send({
+          status: "success",
+          message: "password reset email sent please check your email",
+        });
+      } else {
+        res.send({ status: "failed", message: "email doesn't exists" });
+      }
+    } else {
+      res.send({ status: "all fields are required" });
+    }
+  };
+
+  static userPasswordReset = async (req, res) => {
+    const { password } = req.body;
+    const { id, token } = req.params
+    const user = await UserModel.findById(id);
+    const new_secret = user._id + process.env.jwt_secret_key;
+    try {
+      jwt.verify(token, new_secret);
+      if (password) {
+        const salt = await bcrypt.genSalt(10);
+        const newhashedPassword = await bcrypt.hash(password, salt);
+        await UserModel.findByIdAndUpdate(user._id, {
+          $set: { password: newhashedPassword },
+        });
+        res.send({
+          status: "success",
+          message: "password reset successfully ",
+        });
+      } else {
+        res.send({ status: "failed", message: "provide the password" });
+      }
+    } catch (error) {
+      res.send({ status: "failed", message: "inalid token" });
     }
   };
 }
